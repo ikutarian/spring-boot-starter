@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <title>Center</title>
+    <script src="https://cdn.bootcss.com/jquery/2.2.4/jquery.min.js"></script>
+</head>
+<body>
+<h1>测试ajax错误异常</h1>
+<script>
+    $.ajax({
+        url: 'http://localhost:9527/okada/err/ajaxError',
+        type: 'POST',
+        success: function(data) {
+            if (data.status == 200) {
+                console.log('ok');
+            } else {
+                console.log('发生异常：' + data.msg);
+            }
+        },
+        error: function(resp, options, throwError) {
+            console.log('error');
+        }
+    });
+</script>
+</body>
+</html>
