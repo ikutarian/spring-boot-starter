@@ -1,7 +1,7 @@
 ## 来源
 
-SpringBoot开发常用技术整合
-：https://www.imooc.com/learn/956
+SpringBoot开发常用技术整合：https://www.imooc.com/learn/956
+github：https://github.com/leechenxiang/imooc-springboot-starter
 
 ## 构建一个SpringBoot项目
 
@@ -330,6 +330,62 @@ public class User {
     "age": 18, 
     "birthday": "2018-07-20 15:55:03"
   }
+}
+```
+
+## JSON 工具类
+
+```java
+package com.okada.stater.util;
+
+import java.util.List;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+
+public class JsonUtils {
+
+    // 定义jackson对象
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    /**
+     * 将对象转换成json字符串
+     */
+    public static String objectToJson(Object data) {
+        try {
+            return MAPPER.writeValueAsString(data);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /**
+     * 将json结果集转化为对象
+     */
+    public static <T> T jsonToObject(String jsonData, Class<T> beanType) {
+        try {
+            return MAPPER.readValue(jsonData, beanType);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /**
+     * 将json数据转换成pojo对象list
+     */
+    public static <T> List<T> jsonToList(String jsonData, Class<T> beanType) {
+        JavaType javaType = MAPPER.getTypeFactory().constructParametricType(List.class, beanType);
+        try {
+            return MAPPER.readValue(jsonData, javaType);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 }
 ```
 
@@ -805,8 +861,205 @@ public class GlobalExceptionHandler {
 }
 ```
 
-## 整合 Mybatis——使用 Mybatis-generator 生成 Mapper 和 POJO
-## 整合 Mybatis——实现 CRUD 功能
-## 整合 Mybatis——使用 Mybatis-pagehelper 实现分页
-## 整合 Mybatis——如何自定义 Mapper
+## 整合Redis
 
+引入依赖
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-redis</artifactId>
+</dependency>
+```
+
+Redis 的配置
+
+```
+############################
+#
+# Redis 配置
+#
+############################
+# Redis数据库索引（默认为0）
+spring.redis.database=1
+# Redis服务器地址
+spring.redis.host=127.0.0.1
+# Redis服务器端口
+spring.redis.port=6379
+# Redis服务器连接密码（默认为空）
+spring.redis.password=
+# 连接池最大链接数（使用负值表示没有限制）
+spring.redis.pool.max-active=1000
+# 连接池最大阻塞等待时间（使用负值表示没有限制）
+spring.redis.pool.max-wait=-1
+# 连接池中的最大空闲连接
+spring.redis.pool.max-idle=10
+# 连接池中的最小空闲连接
+spring.redis.pool.min-idle=2
+# 连接超时时间（毫秒）
+spring.redis.timeout=0
+```
+
+然后是一个测试
+
+```java
+package com.okada.stater.controller;
+
+import com.okada.stater.pojo.JSONResult;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+@RestControllerAdvice
+@RequestMapping("redis")
+public class RedisController {
+
+    @Autowired
+    private StringRedisTemplate strRedis;
+
+    private static final String KEY = "okada-cache";
+
+    @RequestMapping("test")
+    public JSONResult test() {
+        strRedis.opsForValue().set(KEY, "hello，world~~~~");
+        return JSONResult.ok(strRedis.opsForValue().get(KEY));
+    }
+}
+```
+
+封装一个 Redis 操作工具类
+
+```java
+package com.okada.stater.util;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisKeyValueTemplate;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Component;
+
+@Component
+public class RedisOperator {
+	
+	@Autowired
+	private StringRedisTemplate redisTemplate;
+	
+	// Key（键），简单的key-value操作
+
+	/**
+	 * 实现命令：TTL key，以秒为单位，返回给定 key的剩余生存时间(TTL, time to live)。
+	 */
+	public long ttl(String key) {
+		return redisTemplate.getExpire(key);
+	}
+	
+	/**
+	 * 实现命令：expire 设置过期时间，单位秒
+	 */
+	public void expire(String key, long timeout) {
+		redisTemplate.expire(key, timeout, TimeUnit.SECONDS);
+	}
+	
+	/**
+	 * 实现命令：INCR key，增加key一次
+	 */
+	public long incr(String key, long delta) {
+		return redisTemplate.opsForValue().increment(key, delta);
+	}
+
+	/**
+	 * 实现命令：KEYS pattern，查找所有符合给定模式 pattern的 key
+	 */
+	public Set<String> keys(String pattern) {
+		return redisTemplate.keys(pattern);
+	}
+
+	/**
+	 * 实现命令：DEL key，删除一个key
+	 */
+	public void del(String key) {
+		redisTemplate.delete(key);
+	}
+
+	// String（字符串）
+
+	/**
+	 * 实现命令：SET key value，设置一个key-value（将字符串值 value关联到 key）
+	 */
+	public void set(String key, String value) {
+		redisTemplate.opsForValue().set(key, value);
+	}
+
+	/**
+	 * 实现命令：SET key value EX seconds，设置key-value和超时时间（秒）
+	 */
+	public void set(String key, String value, long timeout) {
+		redisTemplate.opsForValue().set(key, value, timeout, TimeUnit.SECONDS);
+	}
+
+	/**
+	 * 实现命令：GET key，返回 key所关联的字符串值。
+	 */
+	public String get(String key) {
+		return (String)redisTemplate.opsForValue().get(key);
+	}
+
+	// Hash（哈希表）
+
+	/**
+	 * 实现命令：HSET key field value，将哈希表 key中的域 field的值设为 value
+	 */
+	public void hset(String key, String field, Object value) {
+		redisTemplate.opsForHash().put(key, field, value);
+	}
+
+	/**
+	 * 实现命令：HGET key field，返回哈希表 key中给定域 field的值
+	 */
+	public String hget(String key, String field) {
+		return (String) redisTemplate.opsForHash().get(key, field);
+	}
+
+	/**
+	 * 实现命令：HDEL key field [field ...]，删除哈希表 key 中的一个或多个指定域，不存在的域将被忽略。
+	 */
+	public void hdel(String key, Object... fields) {
+		redisTemplate.opsForHash().delete(key, fields);
+	}
+
+	/**
+	 * 实现命令：HGETALL key，返回哈希表 key中，所有的域和值。
+	 */
+	public Map<Object, Object> hgetall(String key) {
+		return redisTemplate.opsForHash().entries(key);
+	}
+
+	// List（列表）
+
+	/**
+	 * 实现命令：LPUSH key value，将一个值 value插入到列表 key的表头
+	 */
+	public long lpush(String key, String value) {
+		return redisTemplate.opsForList().leftPush(key, value);
+	}
+
+	/**
+	 * 实现命令：LPOP key，移除并返回列表 key的头元素。
+	 */
+	public String lpop(String key) {
+		return (String)redisTemplate.opsForList().leftPop(key);
+	}
+
+	/**
+	 * 实现命令：RPUSH key value，将一个值 value插入到列表 key的表尾(最右边)。
+	 */
+	public long rpush(String key, String value) {
+		return redisTemplate.opsForList().rightPush(key, value);
+	}
+}
+```
